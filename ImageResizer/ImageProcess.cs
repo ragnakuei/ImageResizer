@@ -1,8 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ImageResizer
 {
@@ -57,6 +60,42 @@ namespace ImageResizer
                 processedImage.Save(destFile, ImageFormat.Jpeg);
             }
         }
+        
+        /// <summary>
+        /// 進行圖片的縮放作業
+        /// </summary>
+        /// <param name="sourcePath">圖片來源目錄路徑</param>
+        /// <param name="destPath">產生圖片目的目錄路徑</param>
+        /// <param name="scale">縮放比例</param>
+        public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
+        {
+            var allFiles = FindImages(sourcePath);
+
+            var tasks = allFiles.Select(file => Task.Run(() =>
+                                                         {
+                                                             Image imgPhoto = Image.FromFile(file);
+                                                             string imgName =
+                                                                 Path.GetFileNameWithoutExtension(file);
+
+                                                             int sourceWidth = imgPhoto.Width;
+                                                             int sourceHeight = imgPhoto.Height;
+
+                                                             int destionatonWidth = (int)(sourceWidth * scale);
+                                                             int destionatonHeight = (int)(sourceHeight * scale);
+
+                                                             Bitmap processedImage =
+                                                                 processBitmap((Bitmap)imgPhoto
+                                                                             , sourceWidth
+                                                                             , sourceHeight
+                                                                             , destionatonWidth
+                                                                             , destionatonHeight);
+
+                                                             string destFile = Path.Combine(destPath, imgName + ".jpg");
+                                                             processedImage.Save(destFile, ImageFormat.Jpeg);
+                                                         })).ToArray();
+            Task.WaitAll(tasks);
+        }
+
 
         /// <summary>
         /// 找出指定目錄下的圖片
@@ -71,7 +110,7 @@ namespace ImageResizer
             files.AddRange(Directory.GetFiles(srcPath, "*.jpeg", SearchOption.AllDirectories));
             return files;
         }
-
+        
         /// <summary>
         /// 針對指定圖片進行縮放作業
         /// </summary>
