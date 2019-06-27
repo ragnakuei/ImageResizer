@@ -69,31 +69,49 @@ namespace ImageResizer
         /// <param name="scale">縮放比例</param>
         public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
         {
-            var allFiles = FindImages(sourcePath);
+            var fileExtensions = new List<string>
+                                 {
+                                     "png"
+                                   , "jpg"
+                                   , "jpeg"
+                                 };
+            var tasks = fileExtensions.Select(fileExtension =>
+                                                  Task.Run(() => ResizeImagesByFileExtensionAsync(sourcePath
+                                                                                                , destPath
+                                                                                                , scale
+                                                                                                , fileExtension)))
+                                      .ToArray();
+            await Task.WhenAll(tasks);
+        }
 
-            var tasks = allFiles.Select(file => Task.Run(() =>
-                                                         {
-                                                             Image imgPhoto = Image.FromFile(file);
-                                                             string imgName =
-                                                                 Path.GetFileNameWithoutExtension(file);
+        private async Task ResizeImagesByFileExtensionAsync(string     sourcePath
+                                                          , string     destPath
+                                                          , double     scale
+                                                          , string     fileExtension)
+        {
+            var allFiles = await FindImagesAsync(sourcePath, fileExtension);
+            var fileTasks = allFiles.Select(file =>
+                                                Task.Run(() => ResizeImageAsync(destPath
+                                                                              , scale
+                                                                              , file)));
+            await Task.WhenAll(fileTasks);
+        }
 
-                                                             int sourceWidth = imgPhoto.Width;
-                                                             int sourceHeight = imgPhoto.Height;
+        private async Task<bool> ResizeImageAsync(string destPath , double scale , string file)
+        {
+            Image imgPhoto = Image.FromFile(file);
+            int sourceWidth = imgPhoto.Width;
+            int sourceHeight = imgPhoto.Height;
+            int destionatonWidth = (int)(sourceWidth * scale);
+            int destionatonHeight = (int)(sourceHeight * scale);
 
-                                                             int destionatonWidth = (int)(sourceWidth * scale);
-                                                             int destionatonHeight = (int)(sourceHeight * scale);
+            Bitmap processedImage = processBitmap((Bitmap)imgPhoto, sourceWidth, sourceHeight, destionatonWidth, destionatonHeight);
 
-                                                             Bitmap processedImage =
-                                                                 processBitmap((Bitmap)imgPhoto
-                                                                             , sourceWidth
-                                                                             , sourceHeight
-                                                                             , destionatonWidth
-                                                                             , destionatonHeight);
+            string imgName = Path.GetFileNameWithoutExtension(file);
+            string destFile = Path.Combine(destPath, imgName + ".jpg");
+            processedImage.Save(destFile, ImageFormat.Jpeg);
 
-                                                             string destFile = Path.Combine(destPath, imgName + ".jpg");
-                                                             processedImage.Save(destFile, ImageFormat.Jpeg);
-                                                         })).ToArray();
-            Task.WaitAll(tasks);
+            return true;
         }
 
 
@@ -109,6 +127,17 @@ namespace ImageResizer
             files.AddRange(Directory.GetFiles(srcPath, "*.jpg", SearchOption.AllDirectories));
             files.AddRange(Directory.GetFiles(srcPath, "*.jpeg", SearchOption.AllDirectories));
             return files;
+        }
+
+        /// <summary>
+        /// 找出指定目錄下的圖片
+        /// </summary>
+        /// <param name="srcPath">圖片來源目錄路徑</param>
+        /// <param name="fileExtension"></param>
+        /// <returns></returns>
+        private async Task<string[]> FindImagesAsync(string srcPath, string fileExtension)
+        {
+            return await Task.Run(() => Directory.GetFiles(srcPath, $"*.{fileExtension}", SearchOption.AllDirectories));
         }
         
         /// <summary>
