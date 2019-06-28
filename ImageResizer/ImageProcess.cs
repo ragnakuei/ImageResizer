@@ -1,10 +1,12 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ImageResizer
@@ -75,12 +77,17 @@ namespace ImageResizer
                                    , "jpg"
                                    , "jpeg"
                                  };
-            var tasks = fileExtensions.Select(fileExtension =>
-                                                  Task.Run(() => ResizeImagesByFileExtensionAsync(sourcePath
-                                                                                                , destPath
-                                                                                                , scale
-                                                                                                , fileExtension)))
-                                      .ToArray();
+            
+            Console.WriteLine($"ResizeImagesAsync >> Current ThreadId：{Thread.CurrentThread.ManagedThreadId}");
+            var tasks = new Task[fileExtensions.Count];
+            for (int i = 0 ; i < fileExtensions.Count ; i++)
+            {
+                tasks[i] = ResizeImagesByFileExtensionAsync(sourcePath
+                                                          , destPath
+                                                          , scale
+                                                          , fileExtensions[i]);
+            }
+            
             await Task.WhenAll(tasks);
         }
 
@@ -89,16 +96,25 @@ namespace ImageResizer
                                                           , double     scale
                                                           , string     fileExtension)
         {
+            Console.WriteLine($"ResizeImagesByFileExtensionAsync >> Current ThreadId：{Thread.CurrentThread.ManagedThreadId}");
+            
             var allFiles = await FindImagesAsync(sourcePath, fileExtension);
-            var fileTasks = allFiles.Select(file =>
-                                                Task.Run(() => ResizeImageAsync(destPath
-                                                                              , scale
-                                                                              , file)));
-            await Task.WhenAll(fileTasks);
+            var tasks = new Task[allFiles.Length];
+            for (int i = 0 ; i < allFiles.Length ; i++)
+            {
+                var tempIndex = i;
+                tasks[i] = Task.Run(() => ResizeImage(destPath
+                                                    , scale
+                                                    , allFiles[tempIndex]));
+            }
+            
+            await Task.WhenAll(tasks);
         }
-
-        private async Task<bool> ResizeImageAsync(string destPath , double scale , string file)
+        
+        private void ResizeImage(string destPath , double scale , string file)
         {
+            Console.WriteLine($"ResizeImage >> Current ThreadId：{Thread.CurrentThread.ManagedThreadId}");
+            
             Image imgPhoto = Image.FromFile(file);
             int sourceWidth = imgPhoto.Width;
             int sourceHeight = imgPhoto.Height;
@@ -110,8 +126,6 @@ namespace ImageResizer
             string imgName = Path.GetFileNameWithoutExtension(file);
             string destFile = Path.Combine(destPath, imgName + ".jpg");
             processedImage.Save(destFile, ImageFormat.Jpeg);
-
-            return true;
         }
 
 
@@ -137,9 +151,11 @@ namespace ImageResizer
         /// <returns></returns>
         private async Task<string[]> FindImagesAsync(string srcPath, string fileExtension)
         {
+            Console.WriteLine($"FindImagesAsync >> Current ThreadId：{Thread.CurrentThread.ManagedThreadId}");
+            
             return await Task.Run(() => Directory.GetFiles(srcPath, $"*.{fileExtension}", SearchOption.AllDirectories));
         }
-        
+
         /// <summary>
         /// 針對指定圖片進行縮放作業
         /// </summary>
