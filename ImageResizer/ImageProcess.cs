@@ -79,15 +79,11 @@ namespace ImageResizer
                                  };
             
             Console.WriteLine($"ResizeImagesAsync >> Current ThreadId：{Thread.CurrentThread.ManagedThreadId}");
-            var tasks = new Task[fileExtensions.Count];
-            for (int i = 0 ; i < fileExtensions.Count ; i++)
-            {
-                tasks[i] = ResizeImagesByFileExtensionAsync(sourcePath
-                                                          , destPath
-                                                          , scale
-                                                          , fileExtensions[i]);
-            }
-            
+            var tasks = fileExtensions.AsParallel()
+                                      .Select(fileExtension => ResizeImagesByFileExtensionAsync(sourcePath
+                                                                                              , destPath
+                                                                                              , scale
+                                                                                              , fileExtension));
             await Task.WhenAll(tasks);
         }
 
